@@ -10,6 +10,8 @@
 
 #define WL_SHM_VERSION 1
 
+#define LINUX_DMABUF_VERSION 3
+
 struct xdpw_state;
 
 int xdpw_wlr_screencopy_init(struct xdpw_state *state);

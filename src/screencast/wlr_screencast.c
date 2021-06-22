@@ -596,6 +596,12 @@ int xdpw_wlr_screencopy_init(struct xdpw_state *state) {
 		return -1;
 	}
 
+	// make sure we have a gbm device
+	ctx->gbm = xdpw_gbm_device_create();
+	if (!ctx->gbm) {
+		logprint(ERROR, "System doesn't support gbm!");
+	}
+
 	return 0;
 }
 
@@ -616,6 +622,11 @@ void xdpw_wlr_screencopy_finish(struct xdpw_screencast_context *ctx) {
 	}
 	if (ctx->shm) {
 		wl_shm_destroy(ctx->shm);
+	}
+	if (ctx->gbm) {
+		int fd = gbm_device_get_fd(ctx->gbm);
+		gbm_device_destroy(ctx->gbm);
+		close(fd);
 	}
 	if (ctx->registry) {
 		wl_registry_destroy(ctx->registry);

@@ -586,6 +586,13 @@ static void wlr_registry_handle_remove(void *data, struct wl_registry *reg,
 	struct xdpw_screencast_context *ctx = data;
 	struct xdpw_wlr_output *output = xdpw_wlr_output_find(ctx, NULL, id);
 	if (output) {
+		logprint(DEBUG, "wlroots: output removed (%s)", output->name);
+		struct xdpw_screencast_instance *cast, *tmp;
+		wl_list_for_each_safe(cast, tmp, &ctx->screencast_instances, link) {
+			if (cast->target_output == output) {
+				xdpw_screencast_instance_teardown(cast);
+			}
+		}
 		wlr_remove_output(output);
 	}
 }

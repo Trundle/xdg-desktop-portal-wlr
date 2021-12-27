@@ -94,6 +94,15 @@ void xdpw_screencast_instance_destroy(struct xdpw_screencast_instance *cast) {
 	free(cast);
 }
 
+void xdpw_screencast_instance_teardown(struct xdpw_screencast_instance *cast) {
+	struct xdpw_session *sess, *tmp;
+	wl_list_for_each_safe(sess, tmp, &cast->ctx->state->xdpw_sessions, link) {
+		if (sess->screencast_instance == cast) {
+			xdpw_session_destroy(sess);
+		}
+	}
+}
+
 bool setup_outputs(struct xdpw_screencast_context *ctx, struct xdpw_session *sess, bool with_cursor) {
 
 	struct xdpw_wlr_output *output, *tmp_o;

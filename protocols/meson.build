@@ -10,7 +10,6 @@ endif
 
 client_protocols = [
 	'wlr-screencopy-unstable-v1.xml',
-	'xdg-output-unstable-v1.xml',
 ]
 
 wl_proto_files = []

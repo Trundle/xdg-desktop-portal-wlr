@@ -1,7 +1,6 @@
 #include "wlr_screencast.h"
 
 #include "wlr-screencopy-unstable-v1-client-protocol.h"
-#include "xdg-output-unstable-v1-client-protocol.h"
 #include <fcntl.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -234,6 +233,12 @@ static void wlr_output_handle_mode(void *data, struct wl_output *wl_output,
 	}
 }
 
+static void wlr_output_handle_name(void *data, struct wl_output *wl_output,
+		const char *name) {
+	struct xdpw_wlr_output *output = data;
+	output->name = strdup(name);
+}
+
 static void wlr_output_handle_done(void *data, struct wl_output *wl_output) {
 	/* Nothing to do */
 }
@@ -243,56 +248,18 @@ static void wlr_output_handle_scale(void *data, struct wl_output *wl_output,
 	/* Nothing to do */
 }
 
+static void noop() {
+	// This space intentionally left blank
+}
+
 static const struct wl_output_listener wlr_output_listener = {
 	.geometry = wlr_output_handle_geometry,
 	.mode = wlr_output_handle_mode,
 	.done = wlr_output_handle_done,
 	.scale = wlr_output_handle_scale,
-};
-
-static void wlr_xdg_output_name(void *data, struct zxdg_output_v1 *xdg_output,
-		const char *name) {
-	struct xdpw_wlr_output *output = data;
-
-	output->name = strdup(name);
-};
-
-static void noop() {
-	// This space intentionally left blank
-}
-
-static const struct zxdg_output_v1_listener wlr_xdg_output_listener = {
-	.logical_position = noop,
-	.logical_size = noop,
-	.done = NULL, /* Deprecated */
+	.name = wlr_output_handle_name,
 	.description = noop,
-	.name = wlr_xdg_output_name,
 };
-
-static void wlr_add_xdg_output_listener(struct xdpw_wlr_output *output,
-		struct zxdg_output_v1 *xdg_output) {
-	output->xdg_output = xdg_output;
-	zxdg_output_v1_add_listener(output->xdg_output, &wlr_xdg_output_listener,
-		output);
-}
-
-static void wlr_init_xdg_output(struct xdpw_screencast_context *ctx,
-		struct xdpw_wlr_output *output) {
-	struct zxdg_output_v1 *xdg_output =
-		zxdg_output_manager_v1_get_xdg_output(ctx->xdg_output_manager,
-			output->output);
-	wlr_add_xdg_output_listener(output, xdg_output);
-}
-
-static void wlr_init_xdg_outputs(struct xdpw_screencast_context *ctx) {
-	struct xdpw_wlr_output *output, *tmp;
-	wl_list_for_each_safe(output, tmp, &ctx->output_list, link) {
-		if (output->xdg_output) {
-			continue;
-		}
-		wlr_init_xdg_output(ctx, output);
-	}
-}
 
 static pid_t spawn_chooser(char *cmd, int chooser_in[2], int chooser_out[2]) {
 	logprint(TRACE,
@@ -526,7 +493,6 @@ static void wlr_remove_output(struct xdpw_wlr_output *out) {
 	free(out->name);
 	free(out->make);
 	free(out->model);
-	zxdg_output_v1_destroy(out->xdg_output);
 	wl_output_destroy(out->output);
 	wl_list_remove(&out->link);
 	free(out);
@@ -546,9 +512,6 @@ static void wlr_registry_handle_add(void *data, struct wl_registry *reg,
 
 		wl_output_add_listener(output->output, &wlr_output_listener, output);
 		wl_list_insert(&ctx->output_list, &output->link);
-		if (ctx->xdg_output_manager) {
-			wlr_init_xdg_output(ctx, output);
-		}
 	}
 
 	if (!strcmp(interface, zwlr_screencopy_manager_v1_interface.name)) {
@@ -566,12 +529,6 @@ static void wlr_registry_handle_add(void *data, struct wl_registry *reg,
 	if (strcmp(interface, wl_shm_interface.name) == 0) {
 		logprint(DEBUG, "wlroots: |-- registered to interface %s (Version %u)", interface, WL_SHM_VERSION);
 		ctx->shm = wl_registry_bind(reg, id, &wl_shm_interface, WL_SHM_VERSION);
-	}
-
-	if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
-		logprint(DEBUG, "wlroots: |-- registered to interface %s (Version %u)", interface, XDG_OUTPUT_MANAGER_VERSION);
-		ctx->xdg_output_manager =
-			wl_registry_bind(reg, id, &zxdg_output_manager_v1_interface, XDG_OUTPUT_MANAGER_VERSION);
 	}
 }
 
@@ -613,15 +570,6 @@ int xdpw_wlr_screencopy_init(struct xdpw_state *state) {
 
 	logprint(DEBUG, "wayland: registry listeners run");
 
-	// make sure our wlroots supports xdg_output_manager
-	if (!ctx->xdg_output_manager) {
-		logprint(ERROR, "Compositor doesn't support %s!",
-			zxdg_output_manager_v1_interface.name);
-		return -1;
-	}
-
-	wlr_init_xdg_outputs(ctx);
-
 	wl_display_roundtrip(state->wl_display);
 
 	logprint(DEBUG, "wayland: xdg output listeners run");
@@ -646,7 +594,6 @@ void xdpw_wlr_screencopy_finish(struct xdpw_screencast_context *ctx) {
 	struct xdpw_wlr_output *output, *tmp_o;
 	wl_list_for_each_safe(output, tmp_o, &ctx->output_list, link) {
 		wl_list_remove(&output->link);
-		zxdg_output_v1_destroy(output->xdg_output);
 		wl_output_destroy(output->output);
 	}
 
@@ -660,9 +607,6 @@ void xdpw_wlr_screencopy_finish(struct xdpw_screencast_context *ctx) {
 	}
 	if (ctx->shm) {
 		wl_shm_destroy(ctx->shm);
-	}
-	if (ctx->xdg_output_manager) {
-		zxdg_output_manager_v1_destroy(ctx->xdg_output_manager);
 	}
 	if (ctx->registry) {
 		wl_registry_destroy(ctx->registry);

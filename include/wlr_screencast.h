@@ -3,14 +3,12 @@
 
 #include "screencast_common.h"
 
-#define WL_OUTPUT_VERSION 1
+#define WL_OUTPUT_VERSION 4
 
 #define SC_MANAGER_VERSION 3
 #define SC_MANAGER_VERSION_MIN 2
 
 #define WL_SHM_VERSION 1
-
-#define XDG_OUTPUT_MANAGER_VERSION 3
 
 struct xdpw_state;
 

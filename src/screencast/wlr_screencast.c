@@ -32,19 +32,6 @@ void xdpw_wlr_frame_finish(struct xdpw_screencast_instance *cast) {
 
 	wlr_frame_free(cast);
 
-	if (!cast->pwr_stream_state) {
-		return;
-	}
-
-	// Check if we have a buffer
-	if (cast->current_frame.current_pw_buffer) {
-		xdpw_pwr_enqueue_buffer(cast);
-	}
-
-	if (cast->frame_state == XDPW_FRAME_STATE_RENEG) {
-		pwr_update_stream_param(cast);
-	}
-
 	if (cast->quit || cast->err) {
 		// TODO: revisit the exit condition (remove quit?)
 		// and clean up sessions that still exist if err
@@ -53,19 +40,29 @@ void xdpw_wlr_frame_finish(struct xdpw_screencast_instance *cast) {
 		return ;
 	}
 
-	if (cast->pwr_stream_state && xdpw_pwr_is_driving(cast)) {
-		if (cast->frame_state == XDPW_FRAME_STATE_SUCCESS) {
-			uint64_t delay_ns = fps_limit_measure_end(&cast->fps_limit, cast->framerate);
-			if (delay_ns > 0) {
-				xdpw_add_timer(cast->ctx->state, delay_ns,
-					(xdpw_event_loop_timer_func_t) xdpw_pwr_trigger_process, cast);
-			} else {
-				xdpw_pwr_trigger_process(cast);
-			}
-		} else {
-			xdpw_pwr_trigger_process(cast);
+	// Check if we have a buffer
+	if (cast->current_frame.current_pw_buffer) {
+		xdpw_pwr_enqueue_buffer(cast);
+	}
+
+	if (!cast->pwr_stream_state) {
+		cast->frame_state = XDPW_FRAME_STATE_NONE;
+		return;
+	}
+
+	if (cast->frame_state == XDPW_FRAME_STATE_RENEG) {
+		pwr_update_stream_param(cast);
+	}
+
+	if (cast->frame_state == XDPW_FRAME_STATE_SUCCESS) {
+		uint64_t delay_ns = fps_limit_measure_end(&cast->fps_limit, cast->framerate);
+		if (delay_ns > 0) {
+			xdpw_add_timer(cast->ctx->state, delay_ns,
+				(xdpw_event_loop_timer_func_t) xdpw_wlr_frame_start, cast);
+			return;
 		}
 	}
+	xdpw_wlr_frame_start(cast);
 }
 
 void xdpw_wlr_frame_start(struct xdpw_screencast_instance *cast) {
@@ -73,7 +70,7 @@ void xdpw_wlr_frame_start(struct xdpw_screencast_instance *cast) {
 	if (cast->err) {
 		logprint(ERROR, "wlroots: nonrecoverable error has happened. shutting down instance");
 		xdpw_screencast_instance_destroy(cast);
-		return ;
+		return;
 	}
 
 	if (cast->pwr_stream_state) {
@@ -81,11 +78,10 @@ void xdpw_wlr_frame_start(struct xdpw_screencast_instance *cast) {
 
 		if (!cast->current_frame.current_pw_buffer) {
 			logprint(WARN, "wlroots: failed to dequeue buffer");
-			// TODO: wait for next frame
 		}
 	}
 
-	cast->frame_state = XDPW_FRAME_STATE_NONE;
+	cast->frame_state = XDPW_FRAME_STATE_STARTED;
 	xdpw_wlr_register_cb(cast);
 }
 
@@ -121,11 +117,6 @@ static void wlr_frame_buffer_done(void *data,
 	struct xdpw_screencast_instance *cast = data;
 
 	logprint(TRACE, "wlroots: buffer_done event handler");
-	if (!cast->pwr_stream_state) {
-		xdpw_wlr_frame_finish(cast);
-		return;
-	}
-
 	if (!cast->current_frame.current_pw_buffer) {
 		logprint(WARN, "wlroots: no current buffer");
 		xdpw_wlr_frame_finish(cast);

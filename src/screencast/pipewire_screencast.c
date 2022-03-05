@@ -196,7 +196,7 @@ static void pwr_handle_stream_add_buffer(void *data, struct pw_buffer *buffer) {
 	struct xdpw_screencast_instance *cast = data;
 	struct spa_data *d;
 
-	logprint(TRACE, "pipewire: add buffer event handle");
+	logprint(DEBUG, "pipewire: add buffer event handle");
 
 	d = buffer->buffer->datas;
 
@@ -213,7 +213,7 @@ static void pwr_handle_stream_add_buffer(void *data, struct pw_buffer *buffer) {
 		return;
 	}
 
-	logprint(TRACE, "pipewire: selected buffertype %u", d[0].type);
+	logprint(DEBUG, "pipewire: selected buffertype %u", d[0].type);
 
 	struct xdpw_buffer *xdpw_buffer = xdpw_buffer_create(cast, cast->buffer_type, &cast->screencopy_frame_info[cast->buffer_type]);
 	if (xdpw_buffer == NULL) {
@@ -243,7 +243,7 @@ static void pwr_handle_stream_add_buffer(void *data, struct pw_buffer *buffer) {
 static void pwr_handle_stream_remove_buffer(void *data, struct pw_buffer *buffer) {
 	struct xdpw_screencast_instance *cast = data;
 
-	logprint(TRACE, "pipewire: remove buffer event handle");
+	logprint(DEBUG, "pipewire: remove buffer event handle");
 
 	struct xdpw_buffer *xdpw_buffer = buffer->user_data;
 	if (xdpw_buffer) {
@@ -312,8 +312,11 @@ void xdpw_pwr_enqueue_buffer(struct xdpw_screencast_instance *cast) {
 
 	logprint(TRACE, "********************");
 	logprint(TRACE, "pipewire: fd %u", d[0].fd);
-	logprint(TRACE, "pipewire: size %d", d[0].maxsize);
+	logprint(TRACE, "pipewire: maxsize %d", d[0].maxsize);
+	logprint(TRACE, "pipewire: size %d", d[0].chunk->size);
 	logprint(TRACE, "pipewire: stride %d", d[0].chunk->stride);
+	logprint(TRACE, "pipewire: offset %d", d[0].chunk->offset);
+	logprint(TRACE, "pipewire: chunk flags %d", d[0].chunk->flags);
 	logprint(TRACE, "pipewire: width %d", cast->current_frame.xdpw_buffer->width);
 	logprint(TRACE, "pipewire: height %d", cast->current_frame.xdpw_buffer->height);
 	logprint(TRACE, "pipewire: y_invert %d", cast->current_frame.y_invert);
